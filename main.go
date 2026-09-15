@@ -2,38 +2,55 @@ package main
 
 import (
 	"fmt"
-	"strconv"
+	"log"
 
+	"github.com/armadi1809/gobytecode/env"
 	"github.com/armadi1809/gobytecode/expression"
 	"github.com/armadi1809/gobytecode/instruction"
 	"github.com/armadi1809/gobytecode/opcode"
 )
 
-func compile(exp expression.Expression) []*instruction.Instruction {
-	res := []*instruction.Instruction{}
+func compile(exp expression.Expression) ([]*instruction.Instruction, error) {
+	switch e := exp.(type) {
 
-	for _, tok := range exp.Tokens {
-		if _, err := strconv.Atoi(tok); err == nil {
-			inst := instruction.New(opcode.LOAD_CONST, tok)
-			res = append(res, inst)
+	case expression.IntExpr:
+		inst := instruction.New(opcode.LOAD_CONST, "", int(e))
+		return []*instruction.Instruction{inst}, nil
+	case expression.ValExpr:
+		code, err := compile(e.Expr)
+		if err != nil {
+			return nil, err
 		}
+		inst := instruction.New(opcode.STORE_NAME, e.Name, -1)
+		return append(code, inst), nil
+	case expression.NameExpr:
+		inst := instruction.New(opcode.LOAD_NAME, string(e), -1)
+		return []*instruction.Instruction{inst}, nil
+	default:
+		return nil, fmt.Errorf("unsupported expression type %T", exp)
 	}
-	return res
+
 }
 
-func eval(code []*instruction.Instruction) int {
+func eval(code []*instruction.Instruction, env *env.Env) int {
 	pc := 0
 	stack := []int{}
 	for pc < len(code) {
 		ins := code[pc]
 		op := ins.Op
 		pc += 1
-		if op == opcode.LOAD_CONST {
-			i, err := strconv.Atoi(ins.Arg)
+		switch op {
+		case opcode.LOAD_CONST:
+			stack = append(stack, ins.Value)
+		case opcode.STORE_NAME:
+			val := stack[len(stack)-1]
+			env.Define(ins.Name, val)
+		case opcode.LOAD_NAME:
+			val, err := env.Lookup(ins.Name)
 			if err != nil {
-				panic("Invalid argument load constant instruction")
+				log.Fatalln(err)
 			}
-			stack = append(stack, i)
+			stack = append(stack, val)
 		}
 	}
 
@@ -45,7 +62,9 @@ func eval(code []*instruction.Instruction) int {
 }
 
 func main() {
-	fmt.Println(eval(compile(expression.Expression{Tokens: []string{"5"}})))
-	fmt.Println(eval(compile(expression.Expression{Tokens: []string{"7"}})))
+	env := env.NewEnv(nil)
+	env.Define("x", 5)
+	code, _ := compile(expression.NameExpr("x"))
+	fmt.Println(eval(code, env))
 
 }
