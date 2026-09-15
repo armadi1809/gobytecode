@@ -18,3 +18,10 @@ func (ValExpr) expr() {}
 type NameExpr string
 
 func (NameExpr) expr() {}
+
+type CallExpr struct {
+	Function Expression
+	Args     []Expression
+}
+
+func (CallExpr) expr() {}

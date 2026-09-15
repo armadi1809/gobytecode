@@ -2,22 +2,33 @@ package env
 
 import (
 	"fmt"
+
+	"github.com/armadi1809/gobytecode/builtins"
+	"github.com/armadi1809/gobytecode/instruction"
 )
 
 type Env struct {
-	table  map[string]int
+	table  map[string]instruction.Value
 	parent *Env
 }
 
-func NewEnv(parent *Env) *Env {
-	return &Env{table: make(map[string]int), parent: parent}
+func DefaultEnv() *Env {
+	env := &Env{table: make(map[string]instruction.Value), parent: nil}
+	env.Define("+", builtins.NativeFunc(builtins.BuiltInAdd))
+	env.Define("print", builtins.NativeFunc(builtins.BuiltInPrint))
+
+	return env
 }
 
-func (e *Env) Define(name string, val int) {
+func NewEnv(parent *Env) *Env {
+	return &Env{table: make(map[string]instruction.Value), parent: parent}
+}
+
+func (e *Env) Define(name string, val instruction.Value) {
 	e.table[name] = val
 }
 
-func (e *Env) Assign(name string, val int) error {
+func (e *Env) Assign(name string, val instruction.Value) error {
 	env, err := e.resolve(name)
 	if err != nil {
 		return err
@@ -27,7 +38,7 @@ func (e *Env) Assign(name string, val int) error {
 	return nil
 }
 
-func (e *Env) Lookup(name string) (int, error) {
+func (e *Env) Lookup(name string) (instruction.Value, error) {
 	env, err := e.resolve(name)
 	if err != nil {
 		return -1, err

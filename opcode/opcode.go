@@ -6,4 +6,5 @@ const (
 	LOAD_CONST = iota
 	STORE_NAME
 	LOAD_NAME
+	CALL_FUNCTION
 )
