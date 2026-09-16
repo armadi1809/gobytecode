@@ -33,3 +33,10 @@ type IfExpr struct {
 }
 
 func (IfExpr) expr() {}
+
+type LambdaExpr struct {
+	Params []string
+	Body   Expression
+}
+
+func (LambdaExpr) expr() {}

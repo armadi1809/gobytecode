@@ -16,6 +16,12 @@ type VM struct {
 	env   *env.Env
 }
 
+type Function struct {
+	Params []string
+	Body   []*instruction.Instruction
+	Env    *env.Env
+}
+
 func compile(exp expression.Expression) ([]*instruction.Instruction, error) {
 	switch e := exp.(type) {
 
@@ -80,6 +86,17 @@ func compile(exp expression.Expression) ([]*instruction.Instruction, error) {
 		code = append(code, ifFalseCode...)
 		code = append(code, ifTrueCode...)
 		return code, nil
+	case expression.LambdaExpr:
+		body, err := compile(e.Body)
+		if err != nil {
+			return nil, err
+		}
+
+		return []*instruction.Instruction{
+			{Op: opcode.LOAD_CONST, Value: e.Params},
+			{Op: opcode.LOAD_CONST, Value: body},
+			{Op: opcode.MAKE_FUNCTION, Operand: len(e.Params)},
+		}, nil
 
 	default:
 		return nil, fmt.Errorf("unsupported expression type %T", exp)
@@ -118,19 +135,36 @@ func (vm *VM) eval(code []*instruction.Instruction) (instruction.Value, error) {
 				args[i] = vm.pop()
 			}
 			function := vm.pop()
+			switch fn := function.(type) {
+			case builtins.NativeFunc:
+				result, err := fn(args)
 
-			fn, ok := function.(builtins.NativeFunc)
+				if err != nil {
+					return nil, err
+				}
+				vm.stack = append(vm.stack, result)
+			case Function:
+				if len(args) != len(fn.Params) {
+					return nil, fmt.Errorf("function expects %d arguments, got %d",
+						len(fn.Params), len(args))
+				}
 
-			if !ok {
+				callEnv := env.NewEnv(fn.Env)
+				for index, param := range fn.Params {
+					callEnv.Define(param, args[index])
+				}
+
+				callVM := VM{env: callEnv}
+				result, err := callVM.eval(fn.Body)
+				if err != nil {
+					return nil, err
+				}
+				vm.stack = append(vm.stack, result)
+
+			default:
 				return nil, fmt.Errorf("%T is not callable", function)
 			}
 
-			result, err := fn(args)
-
-			if err != nil {
-				return nil, err
-			}
-			vm.stack = append(vm.stack, result)
 		case opcode.RELATIVE_JUMP_IF_TRUE:
 			condVal := vm.pop()
 			if cond := condVal.(bool); cond {
@@ -138,7 +172,19 @@ func (vm *VM) eval(code []*instruction.Instruction) (instruction.Value, error) {
 			}
 		case opcode.RELATIVE_JUMP:
 			pc += ins.Operand
+		case opcode.MAKE_FUNCTION:
+			body := vm.pop().([]*instruction.Instruction)
+			params := vm.pop().([]string)
 
+			if len(params) != ins.Operand {
+				return nil, fmt.Errorf("function parameter count mismatch")
+			}
+
+			vm.stack = append(vm.stack, Function{
+				Params: params,
+				Body:   body,
+				Env:    vm.env,
+			})
 		}
 	}
 
@@ -150,54 +196,49 @@ func (vm *VM) eval(code []*instruction.Instruction) (instruction.Value, error) {
 }
 
 func main() {
-	exp := expression.CallExpr{
-		Function: expression.NameExpr("print"),
-		Args: []expression.Expression{
-			expression.IntExpr(1),
-			expression.IntExpr(2),
-		},
-	}
-	exp2 := expression.IfExpr{
-		Cond:    expression.NameExpr("true"),
-		IfTrue:  expression.IntExpr(2),
-		IfFalse: expression.IntExpr(3),
-	}
-	exp3 := expression.IfExpr{
-		Cond:    expression.NameExpr("false"),
-		IfTrue:  expression.IntExpr(2),
-		IfFalse: expression.IntExpr(3),
-	}
-
-	code1, err := compile(exp)
-	if err != nil {
-		panic(err)
-	}
-	code2, err := compile(exp2)
-	if err != nil {
-		panic(err)
-	}
-	code3, err := compile(exp3)
-	if err != nil {
-		panic(err)
-	}
-
 	vm := VM{
 		env: env.DefaultEnv(),
 	}
 
-	_, err = vm.eval(code1)
-	if err != nil {
-		panic(err)
+	program := []expression.Expression{
+		expression.ValExpr{
+			Name: "n",
+			Expr: expression.IntExpr(10),
+		},
+		expression.ValExpr{
+			Name: "addN",
+			Expr: expression.LambdaExpr{
+				Params: []string{"x"},
+				Body: expression.CallExpr{
+					Function: expression.NameExpr("+"),
+					Args: []expression.Expression{
+						expression.NameExpr("x"),
+						expression.NameExpr("n"),
+					},
+				},
+			},
+		},
+		expression.CallExpr{
+			Function: expression.NameExpr("addN"),
+			Args: []expression.Expression{
+				expression.IntExpr(5),
+			},
+		},
 	}
-	res1, err := vm.eval(code2)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println(res1)
-	res2, err := vm.eval(code3)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println(res2)
 
+	for _, exp := range program {
+		code, err := compile(exp)
+		if err != nil {
+			panic(err)
+		}
+
+		result, err := vm.eval(code)
+		if err != nil {
+			panic(err)
+		}
+
+		if result != nil {
+			fmt.Println(result)
+		}
+	}
 }
