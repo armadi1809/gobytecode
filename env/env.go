@@ -16,6 +16,8 @@ func DefaultEnv() *Env {
 	env := &Env{table: make(map[string]instruction.Value), parent: nil}
 	env.Define("+", builtins.NativeFunc(builtins.BuiltInAdd))
 	env.Define("print", builtins.NativeFunc(builtins.BuiltInPrint))
+	env.Define("true", true)
+	env.Define("false", false)
 
 	return env
 }

@@ -52,6 +52,35 @@ func compile(exp expression.Expression) ([]*instruction.Instruction, error) {
 
 		code = append(code, instruction.New(opcode.CALL_FUNCTION, len(e.Args), "", -1))
 		return code, nil
+	case expression.IfExpr:
+		ifTrueCode, err := compile(e.IfTrue)
+		if err != nil {
+			return nil, err
+		}
+		ifFalseCode, err := compile(e.IfFalse)
+		if err != nil {
+			return nil, err
+		}
+		relJumpFalseInst := &instruction.Instruction{
+			Op:      opcode.RELATIVE_JUMP,
+			Operand: len(ifTrueCode),
+		}
+		ifFalseCode = append(ifFalseCode, relJumpFalseInst)
+		condCode, err := compile(e.Cond)
+		if err != nil {
+			return nil, err
+		}
+		relJumpTrueInst := &instruction.Instruction{
+			Op:      opcode.RELATIVE_JUMP_IF_TRUE,
+			Operand: len(ifFalseCode),
+		}
+		code := []*instruction.Instruction{}
+		code = append(code, condCode...)
+		code = append(code, relJumpTrueInst)
+		code = append(code, ifFalseCode...)
+		code = append(code, ifTrueCode...)
+		return code, nil
+
 	default:
 		return nil, fmt.Errorf("unsupported expression type %T", exp)
 	}
@@ -102,6 +131,13 @@ func (vm *VM) eval(code []*instruction.Instruction) (instruction.Value, error) {
 				return nil, err
 			}
 			vm.stack = append(vm.stack, result)
+		case opcode.RELATIVE_JUMP_IF_TRUE:
+			condVal := vm.pop()
+			if cond := condVal.(bool); cond {
+				pc += ins.Operand
+			}
+		case opcode.RELATIVE_JUMP:
+			pc += ins.Operand
 
 		}
 	}
@@ -121,8 +157,26 @@ func main() {
 			expression.IntExpr(2),
 		},
 	}
+	exp2 := expression.IfExpr{
+		Cond:    expression.NameExpr("true"),
+		IfTrue:  expression.IntExpr(2),
+		IfFalse: expression.IntExpr(3),
+	}
+	exp3 := expression.IfExpr{
+		Cond:    expression.NameExpr("false"),
+		IfTrue:  expression.IntExpr(2),
+		IfFalse: expression.IntExpr(3),
+	}
 
-	code, err := compile(exp)
+	code1, err := compile(exp)
+	if err != nil {
+		panic(err)
+	}
+	code2, err := compile(exp2)
+	if err != nil {
+		panic(err)
+	}
+	code3, err := compile(exp3)
 	if err != nil {
 		panic(err)
 	}
@@ -131,9 +185,19 @@ func main() {
 		env: env.DefaultEnv(),
 	}
 
-	_, err = vm.eval(code)
+	_, err = vm.eval(code1)
 	if err != nil {
 		panic(err)
 	}
+	res1, err := vm.eval(code2)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(res1)
+	res2, err := vm.eval(code3)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(res2)
 
 }

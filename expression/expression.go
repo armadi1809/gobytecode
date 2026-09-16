@@ -25,3 +25,11 @@ type CallExpr struct {
 }
 
 func (CallExpr) expr() {}
+
+type IfExpr struct {
+	Cond    Expression
+	IfTrue  Expression
+	IfFalse Expression
+}
+
+func (IfExpr) expr() {}
