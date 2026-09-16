@@ -38,6 +38,8 @@ func compile(exp expression.Expression) ([]*instruction.Instruction, error) {
 	case expression.NameExpr:
 		inst := instruction.New(opcode.LOAD_NAME, -1, string(e), -1)
 		return []*instruction.Instruction{inst}, nil
+	case expression.BeginExpr:
+		return compileProgram(e.Exps)
 	case expression.CallExpr:
 		code := []*instruction.Instruction{}
 		functionCode, err := compile(e.Function)
@@ -102,6 +104,19 @@ func compile(exp expression.Expression) ([]*instruction.Instruction, error) {
 		return nil, fmt.Errorf("unsupported expression type %T", exp)
 	}
 
+}
+
+func compileProgram(prog []expression.Expression) ([]*instruction.Instruction, error) {
+	res := []*instruction.Instruction{}
+	for _, exp := range prog {
+		code, err := compile(exp)
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, code...)
+
+	}
+	return res, nil
 }
 
 func (vm *VM) pop() instruction.Value {
@@ -200,45 +215,96 @@ func main() {
 		env: env.DefaultEnv(),
 	}
 
-	program := []expression.Expression{
-		expression.ValExpr{
-			Name: "n",
-			Expr: expression.IntExpr(10),
-		},
-		expression.ValExpr{
-			Name: "addN",
-			Expr: expression.LambdaExpr{
-				Params: []string{"x"},
-				Body: expression.CallExpr{
-					Function: expression.NameExpr("+"),
-					Args: []expression.Expression{
-						expression.NameExpr("x"),
-						expression.NameExpr("n"),
+	vm.env.Define("*", builtins.NativeFunc(func(args []instruction.Value) (instruction.Value, error) {
+		if len(args) != 2 {
+			return nil, fmt.Errorf("* expects 2 arguments, got %d", len(args))
+		}
+
+		left, leftOK := args[0].(int)
+		right, rightOK := args[1].(int)
+		if !leftOK || !rightOK {
+			return nil, fmt.Errorf("* expects integer arguments")
+		}
+
+		return left * right, nil
+	}))
+
+	vm.env.Define("-", builtins.NativeFunc(func(args []instruction.Value) (instruction.Value, error) {
+		if len(args) != 2 {
+			return nil, fmt.Errorf("- expects 2 arguments, got %d", len(args))
+		}
+
+		left, leftOK := args[0].(int)
+		right, rightOK := args[1].(int)
+		if !leftOK || !rightOK {
+			return nil, fmt.Errorf("- expects integer arguments")
+		}
+
+		return left - right, nil
+	}))
+
+	vm.env.Define("eq", builtins.NativeFunc(func(args []instruction.Value) (instruction.Value, error) {
+		if len(args) != 2 {
+			return nil, fmt.Errorf("eq expects 2 arguments, got %d", len(args))
+		}
+
+		return args[0] == args[1], nil
+	}))
+
+	program := expression.BeginExpr{
+		Exps: []expression.Expression{
+			expression.ValExpr{
+				Name: "factorial",
+				Expr: expression.LambdaExpr{
+					Params: []string{"x"},
+					Body: expression.IfExpr{
+						Cond: expression.CallExpr{
+							Function: expression.NameExpr("eq"),
+							Args: []expression.Expression{
+								expression.NameExpr("x"),
+								expression.IntExpr(0),
+							},
+						},
+						IfTrue: expression.IntExpr(1),
+						IfFalse: expression.CallExpr{
+							Function: expression.NameExpr("*"),
+							Args: []expression.Expression{
+								expression.NameExpr("x"),
+								expression.CallExpr{
+									Function: expression.NameExpr("factorial"),
+									Args: []expression.Expression{
+										expression.CallExpr{
+											Function: expression.NameExpr("-"),
+											Args: []expression.Expression{
+												expression.NameExpr("x"),
+												expression.IntExpr(1),
+											},
+										},
+									},
+								},
+							},
+						},
 					},
 				},
 			},
-		},
-		expression.CallExpr{
-			Function: expression.NameExpr("addN"),
-			Args: []expression.Expression{
-				expression.IntExpr(5),
+			expression.CallExpr{
+				Function: expression.NameExpr("factorial"),
+				Args: []expression.Expression{
+					expression.IntExpr(5),
+				},
 			},
 		},
 	}
 
-	for _, exp := range program {
-		code, err := compile(exp)
-		if err != nil {
-			panic(err)
-		}
-
-		result, err := vm.eval(code)
-		if err != nil {
-			panic(err)
-		}
-
-		if result != nil {
-			fmt.Println(result)
-		}
+	code, err := compile(program)
+	if err != nil {
+		panic(err)
 	}
+
+	result, err := vm.eval(code)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(result)
 }

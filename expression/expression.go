@@ -40,3 +40,9 @@ type LambdaExpr struct {
 }
 
 func (LambdaExpr) expr() {}
+
+type BeginExpr struct {
+	Exps []Expression
+}
+
+func (BeginExpr) expr() {}
