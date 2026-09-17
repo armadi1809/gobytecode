@@ -46,3 +46,34 @@ type BeginExpr struct {
 }
 
 func (BeginExpr) expr() {}
+
+func Call(funcName string, args ...Expression) CallExpr {
+	return CallExpr{
+		Function: NameExpr(funcName),
+		Args:     args,
+	}
+}
+
+func Define(funcName string, params []string, body Expression) ValExpr {
+	lambda := LambdaExpr{
+		Params: params,
+		Body:   body,
+	}
+
+	return ValExpr{
+		Name: funcName,
+		Expr: lambda,
+	}
+}
+
+func If(cond Expression, ifT Expression, ifF Expression) IfExpr {
+	return IfExpr{
+		Cond:    cond,
+		IfTrue:  ifT,
+		IfFalse: ifF,
+	}
+}
+
+func Begin(exps ...Expression) BeginExpr {
+	return BeginExpr{Exps: exps}
+}

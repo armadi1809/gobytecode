@@ -251,63 +251,21 @@ func main() {
 		return args[0] == args[1], nil
 	}))
 
-	/*
-		Would be nice to run something like
+	prog := expression.Begin(
+		expression.Define(
+			"factorial",
+			[]string{"x"},
+			expression.If(expression.Call("eq", expression.NameExpr("x"), expression.IntExpr(0)),
+				expression.IntExpr(1),
+				expression.Call("*", expression.NameExpr("x"),
+					expression.Call("factorial", expression.Call("-", expression.NameExpr("x"), expression.IntExpr(1))),
+				),
+			),
+		),
+		expression.Call("factorial", expression.IntExpr(5)),
+	)
 
-		Begin(
-			Define("factorial", ["x"], IF(Call("eq", x, 0), Int(1), Call("factorial", [Call("-", x, 1)]))),
-			Call("factorial", Int(5))
-		)
-
-
-	*/
-
-	program := expression.BeginExpr{
-		Exps: []expression.Expression{
-			expression.ValExpr{
-				Name: "factorial",
-				Expr: expression.LambdaExpr{
-					Params: []string{"x"},
-					Body: expression.IfExpr{
-						Cond: expression.CallExpr{
-							Function: expression.NameExpr("eq"),
-							Args: []expression.Expression{
-								expression.NameExpr("x"),
-								expression.IntExpr(0),
-							},
-						},
-						IfTrue: expression.IntExpr(1),
-						IfFalse: expression.CallExpr{
-							Function: expression.NameExpr("*"),
-							Args: []expression.Expression{
-								expression.NameExpr("x"),
-								expression.CallExpr{
-									Function: expression.NameExpr("factorial"),
-									Args: []expression.Expression{
-										expression.CallExpr{
-											Function: expression.NameExpr("-"),
-											Args: []expression.Expression{
-												expression.NameExpr("x"),
-												expression.IntExpr(1),
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			expression.CallExpr{
-				Function: expression.NameExpr("factorial"),
-				Args: []expression.Expression{
-					expression.IntExpr(5),
-				},
-			},
-		},
-	}
-
-	code, err := compile(program)
+	code, err := compile(prog)
 	if err != nil {
 		panic(err)
 	}
