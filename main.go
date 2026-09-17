@@ -251,6 +251,17 @@ func main() {
 		return args[0] == args[1], nil
 	}))
 
+	/*
+		Would be nice to run something like
+
+		Begin(
+			Define("factorial", ["x"], IF(Call("eq", x, 0), Int(1), Call("factorial", [Call("-", x, 1)]))),
+			Call("factorial", Int(5))
+		)
+
+
+	*/
+
 	program := expression.BeginExpr{
 		Exps: []expression.Expression{
 			expression.ValExpr{
